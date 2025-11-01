@@ -1,4 +1,4 @@
-// index.js — Steam Booster Ultimate (ручное Steam Guard Mobile)
+// index.js — Steam Booster Personal Cosmic Edition
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -10,7 +10,6 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.json());
 
-// ================= ACCOUNTS =================
 const ACCOUNTS = {
   k1nel: {
     id: 'k1nel',
@@ -30,7 +29,6 @@ const ACCOUNTS = {
   },
 };
 
-// ================= BOT CLASS =================
 class SteamFarmBot {
   constructor(config) {
     this.config = config;
@@ -38,11 +36,7 @@ class SteamFarmBot {
     this.isRunning = false;
     this.status = 'offline';
     this.logMessages = [];
-    this.hoursPlayed = {};
-    config.games.forEach(g => (this.hoursPlayed[g] = 0));
     this.steamGuardCallback = null;
-    this.errorMessage = null;
-    this.hoursInterval = null;
     this.setupEvents();
   }
 
@@ -56,57 +50,37 @@ class SteamFarmBot {
 
   setupEvents() {
     this.client.on('loggedOn', () => {
-      this.log('Успешный вход!', 'success');
+      this.log('✅ Успешный вход!', 'success');
       this.client.setPersona(SteamUser.EPersonaState.Online);
       this.client.gamesPlayed(this.config.games);
       this.isRunning = true;
       this.status = 'online';
-      this.startHoursTracking();
     });
 
     this.client.on('steamGuard', (domain, callback) => {
-      this.log('Требуется Steam Guard (Mobile). Жду код...', 'warning');
+      this.log('🔐 Требуется Steam Guard (Mobile)...', 'warning');
       this.steamGuardCallback = callback;
       this.status = 'steam_guard';
       this.config.needsGuardCode = true;
     });
 
     this.client.on('error', err => {
-      this.log('Ошибка: ' + (err.message || String(err)), 'error');
+      this.log('❌ Ошибка: ' + (err.message || err), 'error');
       this.status = 'error';
-      this.errorMessage = err.message || String(err);
-      this.stopHoursTracking();
+      this.isRunning = false;
     });
 
     this.client.on('disconnected', () => {
-      this.log('Отключен', 'info');
+      this.log('🔌 Отключен', 'info');
       this.isRunning = false;
-      this.stopHoursTracking();
       if (this.status !== 'error') this.status = 'offline';
     });
   }
 
-  startHoursTracking() {
-    if (this.hoursInterval) return;
-    this.hoursInterval = setInterval(() => {
-      Object.keys(this.hoursPlayed).forEach(gid => {
-        this.hoursPlayed[gid] += 1 / 60; // +1 минута
-      });
-    }, 60 * 1000);
-  }
-
-  stopHoursTracking() {
-    if (this.hoursInterval) clearInterval(this.hoursInterval);
-    this.hoursInterval = null;
-  }
-
   start() {
-    if (this.isRunning) {
-      this.log('Уже запущен', 'info');
-      return;
-    }
+    if (this.isRunning) return;
     this.status = 'connecting';
-    this.log('Запуск бота...', 'info');
+    this.log('🚀 Запуск бота...', 'info');
     this.client.logOn({
       accountName: this.config.username,
       password: this.config.password,
@@ -115,11 +89,10 @@ class SteamFarmBot {
 
   stop() {
     if (this.isRunning) {
-      this.log('Остановка бота...', 'info');
+      this.log('🛑 Остановка бота...', 'info');
       this.client.logOff();
     }
     this.isRunning = false;
-    this.stopHoursTracking();
     this.status = 'offline';
   }
 
@@ -129,11 +102,11 @@ class SteamFarmBot {
         this.steamGuardCallback(code);
         this.steamGuardCallback = null;
         this.config.needsGuardCode = false;
-        this.log('Код Steam Guard принят: ' + code, 'success');
+        this.log('✅ Код Steam Guard принят: ' + code, 'success');
         this.status = 'connecting';
         return true;
       } catch (e) {
-        this.log('Ошибка при отправке Steam Guard кода: ' + (e.message || e), 'error');
+        this.log('❌ Ошибка при отправке кода: ' + (e.message || e), 'error');
         return false;
       }
     }
@@ -141,36 +114,30 @@ class SteamFarmBot {
   }
 }
 
-// ================= CREATE BOTS =================
 const bots = {};
 Object.values(ACCOUNTS).forEach(cfg => {
   bots[cfg.id] = new SteamFarmBot(cfg);
 });
 
-// ================= WEBSOCKET UPDATES =================
 wss.on('connection', ws => {
   const interval = setInterval(() => {
-    const statusData = {};
+    const data = {};
     for (const id in bots) {
       const b = bots[id];
-      statusData[id] = {
+      data[id] = {
         displayName: b.config.displayName,
         status: b.status,
         needsGuardCode: b.config.needsGuardCode,
-        errorMessage: b.errorMessage || null,
         log: b.logMessages,
-        hoursPlayed: b.hoursPlayed,
       };
     }
-    try {
-      ws.send(JSON.stringify({ type: 'update', accounts: statusData }));
-    } catch {}
-  }, 1500);
+    try { ws.send(JSON.stringify({ type: 'update', accounts: data })); } catch {}
+  }, 1000);
 
   ws.on('close', () => clearInterval(interval));
 });
 
-// ================= API =================
+// API
 app.post('/api/start/:id', (req, res) => {
   const bot = bots[req.params.id];
   if (!bot) return res.status(404).json({ error: 'Аккаунт не найден' });
@@ -189,13 +156,13 @@ app.post('/api/guard/:id', (req, res) => {
   const bot = bots[req.params.id];
   if (!bot) return res.status(404).json({ error: 'Аккаунт не найден' });
   const { code } = req.body;
-  if (!code) return res.status(400).json({ error: 'Требуется { "code": "..." }' });
+  if (!code) return res.status(400).json({ error: 'Введите код' });
   const ok = bot.submitGuardCode(code);
   if (ok) res.json({ success: true });
   else res.status(400).json({ error: 'Код не принят' });
 });
 
-// ================= FRONTEND =================
+// FRONTEND
 app.get('/', (req, res) => {
   let html = `
 <!DOCTYPE html>
@@ -203,14 +170,16 @@ app.get('/', (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Steam Booster Personal</title>
+<title>🚀 Steam Booster Cosmic</title>
 <style>
-body{font-family:Arial;background:#0a0f1b;color:#fff;margin:0;padding:20px;}
-h1{text-align:center;margin-bottom:20px;}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;}
-.card{background:#1a1f32;padding:15px;border-radius:12px;box-shadow:0 5px 15px rgba(0,0,0,0.5);}
-.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-.status{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;}
+body{margin:0;font-family:sans-serif;background:linear-gradient(120deg,#0f0c29,#302b63,#24243e);color:white;display:flex;flex-direction:column;align-items:center;}
+h1{text-align:center;margin:20px 0;font-size:2em;text-shadow:0 0 10px #fff;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;width:90%;max-width:900px;}
+.card{background:rgba(255,255,255,0.05);padding:20px;border-radius:15px;box-shadow:0 0 30px rgba(255,255,255,0.1);position:relative;overflow:hidden;}
+.card::before{content:"";position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,#ffffff20,#0000);animation:rotate 20s linear infinite;}
+@keyframes rotate{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:1.2em;font-weight:bold;}
+.status{padding:5px 10px;border-radius:999px;font-weight:bold;font-size:0.9em;}
 .online{background:#16a34a;color:#fff;}
 .offline{background:#64748b;color:#fff;}
 .steam_guard{background:#facc15;color:#000;}
@@ -224,7 +193,7 @@ h1{text-align:center;margin-bottom:20px;}
 </style>
 </head>
 <body>
-<h1>🎮 Steam Booster — персональная панель</h1>
+<h1>🌌 Steam Booster Cosmic</h1>
 <div class="grid">
 `;
 
@@ -237,7 +206,7 @@ h1{text-align:center;margin-bottom:20px;}
 <button class="btn btn-start" onclick="startBot('${acc.id}')">СТАРТ</button>
 <button class="btn btn-stop" onclick="stopBot('${acc.id}')">СТОП</button>
 </div>
-<div id="guard-${acc.id}" style="margin-top:8px;"></div>
+<div id="guard-${acc.id}"></div>
 <div class="log" id="log-${acc.id}"></div>
 </div>
 `;
@@ -247,9 +216,12 @@ h1{text-align:center;margin-bottom:20px;}
 </div>
 <script>
 const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
-let accounts = {};
-ws.onmessage = e => { try{ const d = JSON.parse(e.data); if(d.type==='update'){ accounts=d.accounts; renderAll(); }}catch{} };
-function renderAll(){ Object.keys(accounts).forEach(id=>render(id,accounts[id])); }
+ws.onmessage = e => {
+try{
+const d=JSON.parse(e.data);
+if(d.type==='update'){Object.keys(d.accounts).forEach(id=>render(id,d.accounts[id]));}
+}catch{}
+};
 function render(id,acc){
 const s=document.getElementById('status-'+id);
 const log=document.getElementById('log-'+id);
@@ -271,8 +243,8 @@ function sendGuardCode(id){ const v=document.getElementById('input-'+id).value; 
   res.send(html);
 });
 
-// ================= START SERVER =================
+// START SERVER
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
-  console.log('🚀 Steam Booster Personal запущен на порту', PORT);
+  console.log('🚀 Steam Booster Cosmic запущен на порту', PORT);
 });
