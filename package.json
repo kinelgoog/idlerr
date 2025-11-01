@@ -1,14 +1,17 @@
 {
-  "name": "steam-booster-personal",
+  "name": "steam-booster",
   "version": "1.0.0",
-  "description": "Steam Booster Cosmic — персональный фарм CS2",
+  "description": "Автоматизация фарминга часов в Steam",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "steam-user": "^5.2.3",
-    "ws": "^8.16.0"
-  }
+    "node-fetch": "^3.3.1",
+    "steam-user": "^4.35.0",
+    "fs": "*"
+  },
+  "author": "",
+  "license": "ISC"
 }
