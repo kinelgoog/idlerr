@@ -1,9 +1,8 @@
-require('dotenv').config();
+// index.js — Steam Booster Ultimate (ручное Steam Guard Mobile)
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const SteamUser = require('steam-user');
-const SteamTotp = require('steam-totp');
 
 const app = express();
 const server = http.createServer(app);
@@ -11,258 +10,269 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.json());
 
-// === Настройки аккаунтов через .env ===
-const accountsConfig = [
-  {
-    id: 'acc_1',
-    displayName: 'точка',
-    username: process.env.ACC_1_USERNAME,
-    password: process.env.ACC_1_PASSWORD,
-    sharedSecret: process.env.ACC_1_SHAREDSECRET,
-    games: [730]
-  },
-  {
-    id: 'acc_2',
+// ================= ACCOUNTS =================
+const ACCOUNTS = {
+  k1nel: {
+    id: 'k1nel',
     displayName: 'кинелька',
-    username: process.env.ACC_2_USERNAME,
-    password: process.env.ACC_2_PASSWORD,
-    sharedSecret: process.env.ACC_2_SHAREDSECRET,
-    games: [730]
-  }
-];
+    username: 'k1nelsteam',
+    password: 'JenyaKinel2023steam',
+    games: [730],
+    needsGuardCode: false,
+  },
+  tochka: {
+    id: 'tochka',
+    displayName: 'точка',
+    username: 'tochka_bi_laik',
+    password: 'JenyaKinel2023steam',
+    games: [730],
+    needsGuardCode: false,
+  },
+};
 
-// === Класс бота ===
+// ================= BOT CLASS =================
 class SteamFarmBot {
-  constructor({ id, displayName, username, password, sharedSecret, games }) {
-    this.config = { id, displayName, username, password, sharedSecret, games };
+  constructor(config) {
+    this.config = config;
     this.client = new SteamUser();
     this.isRunning = false;
     this.status = 'offline';
     this.logMessages = [];
     this.hoursPlayed = {};
-    games.forEach(game => (this.hoursPlayed[game] = 0));
+    config.games.forEach(g => (this.hoursPlayed[g] = 0));
     this.steamGuardCallback = null;
     this.errorMessage = null;
+    this.hoursInterval = null;
     this.setupEvents();
   }
 
-  log(msg, type = 'info') {
-    const timestamp = new Date().toLocaleTimeString();
-    const formatted = `[${timestamp}] ${msg}`;
-    this.logMessages.push({ msg: formatted, type });
+  log(text, type = 'info') {
+    const ts = new Date().toLocaleTimeString();
+    const entry = { msg: `[${ts}] ${text}`, type };
+    this.logMessages.push(entry);
     if (this.logMessages.length > 50) this.logMessages.shift();
-    console.log(`[${this.config.displayName}] ${msg}`);
-    return formatted;
+    console.log(`[${this.config.displayName}] ${text}`);
   }
 
   setupEvents() {
     this.client.on('loggedOn', () => {
-      this.log('✅ Успешный вход!', 'success');
+      this.log('Успешный вход!', 'success');
       this.client.setPersona(SteamUser.EPersonaState.Online);
       this.client.gamesPlayed(this.config.games);
       this.isRunning = true;
       this.status = 'online';
-      this.startTrackingHours();
+      this.startHoursTracking();
     });
 
     this.client.on('steamGuard', (domain, callback) => {
-      if (this.config.sharedSecret) {
-        const code = SteamTotp.generateAuthCode(this.config.sharedSecret);
-        this.log(`🔐 Отправка Mobile Steam Guard: ${code}`, 'info');
-        callback(code);
-      } else {
-        this.log('🔐 Требуется код Steam Guard (Email)', 'warning');
-        this.steamGuardCallback = callback;
-        this.status = 'steam_guard';
-      }
+      this.log('Требуется Steam Guard (Mobile). Жду код...', 'warning');
+      this.steamGuardCallback = callback;
+      this.status = 'steam_guard';
+      this.config.needsGuardCode = true;
     });
 
     this.client.on('error', err => {
-      this.log(`❌ Ошибка: ${err.message}`, 'error');
+      this.log('Ошибка: ' + (err.message || String(err)), 'error');
       this.status = 'error';
-      this.errorMessage = err.message;
-      this.stopTrackingHours();
+      this.errorMessage = err.message || String(err);
+      this.stopHoursTracking();
     });
 
     this.client.on('disconnected', () => {
-      this.log('🔌 Отключен', 'info');
+      this.log('Отключен', 'info');
       this.isRunning = false;
-      this.stopTrackingHours();
+      this.stopHoursTracking();
       if (this.status !== 'error') this.status = 'offline';
     });
   }
 
-  startTrackingHours() {
+  startHoursTracking() {
     if (this.hoursInterval) return;
     this.hoursInterval = setInterval(() => {
-      for (let gameId of this.config.games) this.hoursPlayed[gameId] += 1 / 60;
+      Object.keys(this.hoursPlayed).forEach(gid => {
+        this.hoursPlayed[gid] += 1 / 60; // +1 минута
+      });
     }, 60 * 1000);
   }
 
-  stopTrackingHours() {
+  stopHoursTracking() {
     if (this.hoursInterval) clearInterval(this.hoursInterval);
     this.hoursInterval = null;
   }
 
   start() {
-    if (this.isRunning) return;
+    if (this.isRunning) {
+      this.log('Уже запущен', 'info');
+      return;
+    }
     this.status = 'connecting';
-    this.log('🚀 Запуск...', 'info');
-    this.client.logOn({ accountName: this.config.username, password: this.config.password });
+    this.log('Запуск бота...', 'info');
+    this.client.logOn({
+      accountName: this.config.username,
+      password: this.config.password,
+    });
   }
 
   stop() {
     if (this.isRunning) {
-      this.log('🛑 Остановка...', 'info');
+      this.log('Остановка бота...', 'info');
       this.client.logOff();
     }
     this.isRunning = false;
-    this.stopTrackingHours();
+    this.stopHoursTracking();
     this.status = 'offline';
   }
 
-  submitSteamGuardCode(code) {
+  submitGuardCode(code) {
     if (this.steamGuardCallback) {
-      this.steamGuardCallback(code);
-      this.steamGuardCallback = null;
-      this.status = 'connecting';
-      this.log(`🔐 Отправлен код Steam Guard: ${code}`, 'success');
-      return true;
+      try {
+        this.steamGuardCallback(code);
+        this.steamGuardCallback = null;
+        this.config.needsGuardCode = false;
+        this.log('Код Steam Guard принят: ' + code, 'success');
+        this.status = 'connecting';
+        return true;
+      } catch (e) {
+        this.log('Ошибка при отправке Steam Guard кода: ' + (e.message || e), 'error');
+        return false;
+      }
     }
     return false;
   }
 }
 
-// === Создаем боты ===
+// ================= CREATE BOTS =================
 const bots = {};
-accountsConfig.forEach(acc => {
-  bots[acc.id] = new SteamFarmBot(acc);
+Object.values(ACCOUNTS).forEach(cfg => {
+  bots[cfg.id] = new SteamFarmBot(cfg);
 });
 
-// === WebSocket для фронтенда ===
+// ================= WEBSOCKET UPDATES =================
 wss.on('connection', ws => {
   const interval = setInterval(() => {
     const statusData = {};
     for (const id in bots) {
-      const bot = bots[id];
+      const b = bots[id];
       statusData[id] = {
-        displayName: bot.config.displayName,
-        status: bot.status,
-        needsGuardCode: !!bot.steamGuardCallback,
-        errorMessage: bot.errorMessage || null,
-        log: bot.logMessages,
-        hoursPlayed: bot.hoursPlayed
+        displayName: b.config.displayName,
+        status: b.status,
+        needsGuardCode: b.config.needsGuardCode,
+        errorMessage: b.errorMessage || null,
+        log: b.logMessages,
+        hoursPlayed: b.hoursPlayed,
       };
     }
-    ws.send(JSON.stringify({ type: 'update', accounts: statusData }));
-  }, 2000);
+    try {
+      ws.send(JSON.stringify({ type: 'update', accounts: statusData }));
+    } catch {}
+  }, 1500);
 
   ws.on('close', () => clearInterval(interval));
 });
 
-// === API ===
-app.post('/api/farm/start/:id', (req, res) => {
+// ================= API =================
+app.post('/api/start/:id', (req, res) => {
   const bot = bots[req.params.id];
   if (!bot) return res.status(404).json({ error: 'Аккаунт не найден' });
   bot.start();
   res.json({ success: true });
 });
 
-app.post('/api/farm/stop/:id', (req, res) => {
+app.post('/api/stop/:id', (req, res) => {
   const bot = bots[req.params.id];
   if (!bot) return res.status(404).json({ error: 'Аккаунт не найден' });
   bot.stop();
   res.json({ success: true });
 });
 
-app.post('/api/steam-guard/:id', (req, res) => {
+app.post('/api/guard/:id', (req, res) => {
   const bot = bots[req.params.id];
-  const { code } = req.body;
   if (!bot) return res.status(404).json({ error: 'Аккаунт не найден' });
-  if (!code) return res.status(400).json({ error: 'Введите код' });
-  if (bot.submitSteamGuardCode(code)) res.json({ success: true });
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'Требуется { "code": "..." }' });
+  const ok = bot.submitGuardCode(code);
+  if (ok) res.json({ success: true });
   else res.status(400).json({ error: 'Код не принят' });
 });
 
-// === Фронтенд ===
+// ================= FRONTEND =================
 app.get('/', (req, res) => {
-  res.send(`
+  let html = `
 <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Steam Booster Ultimate</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Steam Booster Personal</title>
 <style>
-body{font-family:Arial;background:#1e1e1e;color:#fff;padding:20px;}
+body{font-family:Arial;background:#0a0f1b;color:#fff;margin:0;padding:20px;}
 h1{text-align:center;margin-bottom:20px;}
-.account{background:#2d2d2d;padding:15px;margin:10px 0;border-radius:10px;transition:all 0.3s;}
-.account:hover{background:#333;}
-.status{padding:5px 10px;border-radius:5px;margin-left:10px;color:#fff;}
-.online{background:#43b581;}
-.offline{background:#747f8d;}
-.steam_guard{background:#faa61a;}
-.error{background:#f04747;}
-button{padding:8px 12px;margin:3px;border:none;border-radius:5px;cursor:pointer;color:#fff;}
-.start{background:#43b581;}
-.stop{background:#f04747;}
-input{width:50%;padding:5px;border-radius:3px;margin-right:5px;border:1px solid #444;background:#1e1e1e;color:#fff;}
-.log{background:#1e1e1e;padding:5px;margin-top:5px;max-height:150px;overflow:auto;border-radius:5px;font-size:12px;}
-.progress-container{background:#444;border-radius:5px;margin:5px 0;height:12px;width:100%;}
-.progress-bar{height:12px;border-radius:5px;background:#43b581;width:0%;transition:width 1s;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;}
+.card{background:#1a1f32;padding:15px;border-radius:12px;box-shadow:0 5px 15px rgba(0,0,0,0.5);}
+.title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.status{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;}
+.online{background:#16a34a;color:#fff;}
+.offline{background:#64748b;color:#fff;}
+.steam_guard{background:#facc15;color:#000;}
+.error{background:#ef4444;color:#fff;}
+.controls{margin-top:10px;}
+.btn{padding:8px 12px;border:none;border-radius:8px;margin-right:6px;cursor:pointer;font-weight:bold;}
+.btn-start{background:#06b6d4;color:#000;}
+.btn-stop{background:#ef4444;color:#fff;}
+.input{margin-top:6px;padding:6px;border-radius:6px;border:none;width:100%;}
+.log{margin-top:10px;background:rgba(255,255,255,0.1);height:100px;overflow:auto;padding:6px;font-size:12px;font-family:monospace;}
 </style>
 </head>
 <body>
-<h1>🎮 Steam Booster Ultimate 10/10++</h1>
-<div id="accounts"></div>
+<h1>🎮 Steam Booster — персональная панель</h1>
+<div class="grid">
+`;
 
+  Object.values(ACCOUNTS).forEach(acc => {
+    html += `
+<div class="card" id="card-${acc.id}">
+<div class="title"><div>${acc.displayName}</div><div id="status-${acc.id}" class="status offline">OFFLINE</div></div>
+<div>Логин: ${acc.username}</div>
+<div class="controls">
+<button class="btn btn-start" onclick="startBot('${acc.id}')">СТАРТ</button>
+<button class="btn btn-stop" onclick="stopBot('${acc.id}')">СТОП</button>
+</div>
+<div id="guard-${acc.id}" style="margin-top:8px;"></div>
+<div class="log" id="log-${acc.id}"></div>
+</div>
+`;
+  });
+
+  html += `
+</div>
 <script>
-let accounts={};
-const ws=new WebSocket(\`\${location.protocol==='https:'?'wss':'ws'}://\${location.host}\`);
-
-ws.onmessage=msg=>{
-  const data=JSON.parse(msg.data);
-  if(data.type==='update'){accounts=data.accounts;renderAccounts();}
-};
-
-function renderAccounts(){
-  const container=document.getElementById('accounts'); container.innerHTML='';
-  for(const id in accounts){
-    const acc=accounts[id];
-    const div=document.createElement('div'); div.className='account';
-    let logs=acc.log.map(l=>\`<div style="color:\${l.type==='error'?'#f04747':l.type==='warning'?'#faa61a':'#43b581'}">\${l.msg}</div>\`).join('');
-    let hoursHtml=Object.entries(acc.hoursPlayed).map(([gid,h])=>\`
-      <div>Game \${gid}: \${h.toFixed(2)}h
-        <div class="progress-container"><div class="progress-bar" style="width:\${Math.min(h/100*100,100)}%"></div></div>
-      </div>\`).join('');
-    div.innerHTML=\`
-      <strong>\${acc.displayName}</strong>
-      <span class="status \${acc.status==='steam_guard'?'steam_guard':acc.status==='online'?'online':acc.status==='error'?'error':'offline'}">\${acc.status.toUpperCase()}</span>
-      \${acc.errorMessage?`<div style="color:#f04747;">Ошибка: \${acc.errorMessage}</div>`:''}
-      <div>\${hoursHtml}</div>
-      <div class="log">\${logs}</div>
-      <div>
-        <button class="start" onclick="startFarm('\${id}')">СТАРТ</button>
-        <button class="stop" onclick="stopFarm('\${id}')">СТОП</button>
-        \${acc.status==='steam_guard'?`<input id="guard-\${id}" placeholder="Steam Guard код"><button onclick="submitGuard('\${id}')">ВВЕСТИ</button>`:''}
-      </div>
-    \`;
-    container.appendChild(div);
-  }
+const ws = new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
+let accounts = {};
+ws.onmessage = e => { try{ const d = JSON.parse(e.data); if(d.type==='update'){ accounts=d.accounts; renderAll(); }}catch{} };
+function renderAll(){ Object.keys(accounts).forEach(id=>render(id,accounts[id])); }
+function render(id,acc){
+const s=document.getElementById('status-'+id);
+const log=document.getElementById('log-'+id);
+const guard=document.getElementById('guard-'+id);
+s.className='status '+(acc.status==='online'?'online':acc.status==='steam_guard'?'steam_guard':acc.status==='error'?'error':'offline');
+s.textContent=(acc.status||'offline').toUpperCase();
+log.innerHTML=acc.log.slice().reverse().map(l=>'<div style="color:'+(l.type==='error'?'#ffb4b4':l.type==='warning'?'#ffd7a6':'#bce7d8')+'">'+l.msg+'</div>').join('');
+if(acc.needsGuardCode){
+guard.innerHTML='<input class="input" id="input-'+id+'" placeholder="Код Steam Guard"><button class="btn btn-start" onclick="sendGuardCode(\''+id+'\')">ОТПРАВИТЬ КОД</button>';
+}else{ guard.innerHTML=''; }
 }
-
-function startFarm(id){fetch(`/api/farm/start/${id}`,{method:'POST'});}
-function stopFarm(id){fetch(`/api/farm/stop/${id}`,{method:'POST'});}
-function submitGuard(id){
-  const code=document.getElementById(`guard-${id}`).value;
-  fetch(`/api/steam-guard/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})})
-    .then(res=>res.json()).then(res=>{if(!res.success) alert(res.error);});
-}
+function startBot(id){ fetch('/api/start/'+id,{method:'POST'}); }
+function stopBot(id){ fetch('/api/stop/'+id,{method:'POST'}); }
+function sendGuardCode(id){ const v=document.getElementById('input-'+id).value; if(!v) return alert('Введите код'); fetch('/api/guard/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v})}).then(r=>r.json()).then(j=>{ if(j.success)alert('Код принят'); else alert('Ошибка'); }).catch(()=>alert('Ошибка сети')); }
 </script>
 </body>
 </html>
-  `);
+`;
+  res.send(html);
 });
 
-// === Запуск сервера ===
+// ================= START SERVER =================
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log(`🚀 Сервер запущен на http://localhost:${PORT}`));
+server.listen(PORT, () => {
+  console.log('🚀 Steam Booster Personal запущен на порту', PORT);
+});
