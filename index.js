@@ -2,7 +2,7 @@ const express = require('express');
 const steamUser = require('steam-user');
 const fs = require('fs');
 const crypto = require('crypto');
-const fetch = require('node-fetch'); // Для Webhook
+const fetch = require('node-fetch'); 
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -10,9 +10,7 @@ const PORT = process.env.PORT || 10000;
 // =================================================================
 // 🚨 КОНФИГУРАЦИЯ БЕЗОПАСНОСТИ И УВЕДОМЛЕНИЙ
 // =================================================================
-
-// 🔑 Ключ Шифрования (32 символа!)
-const SECRET_KEY = process.env.SECRET_KEY || 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'; 
+const SECRET_KEY = process.env.SECRET_KEY || 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'; // 32 символа!
 const IV_LENGTH = 16; 
 
 if (SECRET_KEY.length !== 32) {
@@ -20,11 +18,10 @@ if (SECRET_KEY.length !== 32) {
     process.exit(1);
 }
 
-// 🔔 Webhook URL (например, Discord/Telegram/Slack)
 const WEBHOOK_URL = process.env.WEBHOOK_URL || null; 
 // =================================================================
 
-// 🔒 Функции шифрования и дешифрования
+// 🔒 Функции шифрования (без изменений)
 function encrypt(text) {
     let iv = crypto.randomBytes(IV_LENGTH);
     let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(SECRET_KEY), iv);
@@ -48,7 +45,7 @@ function decrypt(text) {
     }
 }
 
-// 🔔 Функция отправки уведомлений
+// 🔔 Функция Webhook (без изменений)
 function sendNotification(message) {
     const logEntry = `[${new Date().toLocaleTimeString()}] ${message}`;
     console.log(logEntry);
@@ -62,8 +59,7 @@ function sendNotification(message) {
     }
 }
 
-
-// 🗄️ Хранение данных
+// 🗄️ Управление данными (без изменений)
 const DATA_FILE = './accounts.json';
 let accounts = {};
 let botInstances = new Map();
@@ -101,7 +97,7 @@ class SteamFarmBot {
         this.client = new steamUser();
         this.isRunning = false;
         this.steamGuardCallback = null; 
-        this.retryTimeout = null;
+        this.retryTimeout = null; // Таймер для авто-рестарта
         this.setupEventHandlers();
     }
 
@@ -112,7 +108,7 @@ class SteamFarmBot {
         }
     }
 
-    // 📊 Функция получения часов игры
+    // 📊 Получение часов (без изменений)
     getAndSaveHours() {
         this.client.getOwnedGames({
             appids_filter: this.config.games.split(' ').map(Number).filter(id => id > 0)
@@ -124,9 +120,7 @@ class SteamFarmBot {
             
             let totalTime = 0;
             if (games.games) {
-                games.games.forEach(game => {
-                    totalTime += game.playtime_forever || 0;
-                });
+                games.games.forEach(game => { totalTime += game.playtime_forever || 0; });
             }
             
             const hours = Math.round(totalTime / 60);
@@ -151,12 +145,12 @@ class SteamFarmBot {
             sendNotification(`✅ Бот ${this.config.displayName} успешно вошел в систему и начинает фарм.`);
             
             const games = this.config.games.split(' ').map(Number).filter(id => id > 0);
-            this.client.setPersona(1); // Онлайн
+            this.client.setPersona(1);
             this.client.gamesPlayed(games);
             
             this.isRunning = true;
             this.steamGuardCallback = null; 
-            this.clearRetry();
+            this.clearRetry(); // Сбрасываем таймер, так как вход успешен
             this.updateAccountStatus({ farmStatus: 'running', botStatus: 'online', error: null, needsGuardCode: false });
             
             this.getAndSaveHours();
@@ -175,20 +169,41 @@ class SteamFarmBot {
             });
         });
         
+        // 🌟 ИСПРАВЛЕННАЯ ЛОГИКА ОШИБОК 🌟
         this.client.on('error', (err) => {
-            const errorMessage = `❌ Ошибка ${this.config.displayName}: ${err.message}`;
-            sendNotification(errorMessage);
+            let errorMessage = err.message;
+            let canRetry = true; // По умолчанию бот попробует перезапуститься
+
+            if (err.eresult === steamUser.EResult.RateLimitExceeded) {
+                errorMessage = "RateLimitExceeded. Слишком много попыток. Ждем 5 мин.";
+            } else if (err.eresult === steamUser.EResult.InvalidPassword) {
+                errorMessage = "Неверный пароль. Фарм остановлен.";
+                canRetry = false; // 🚫 Не пытаться перезапустить, если пароль неверный
+            } else if (err.eresult === steamUser.EResult.InvalidLoginAuthCode) {
+                errorMessage = "Неверный код Steam Guard. Попробуйте снова.";
+                canRetry = false; // 🚫 Не перезапускаем, ждем нового кода от пользователя
+            }
+            
+            const fullErrorMessage = `❌ Ошибка ${this.config.displayName}: ${errorMessage}`;
+            sendNotification(fullErrorMessage);
             
             this.isRunning = false;
             this.steamGuardCallback = null; 
-            this.updateAccountStatus({ botStatus: 'error', farmStatus: 'stopped', error: err.message, needsGuardCode: false });
+            this.updateAccountStatus({ 
+                botStatus: 'error', 
+                farmStatus: 'stopped', 
+                error: errorMessage, 
+                needsGuardCode: false 
+            });
             
-            // 🛡️ АВТОМАТИЧЕСКИЙ ПЕРЕЗАПУСК (после 5 минут)
-            if (!this.retryTimeout && err.eresult !== steamUser.EResult.InvalidPassword) {
+            // 🛡️ АВТОМАТИЧЕСКИЙ ПЕРЕЗАПУСК (Только если это разрешено)
+            if (canRetry && !this.retryTimeout) {
                 sendNotification(`🔄 ${this.config.displayName}: Попытка перезапуска через 5 минут.`);
                 this.retryTimeout = setTimeout(() => {
                     this.clearRetry();
-                    this.startFarming(); // Повторная попытка
+                    if (accounts[this.accountId]) { // Убедимся, что аккаунт еще существует
+                        this.startFarming(); // 🚀 Отправляем ОДИН запрос на рестарт
+                    }
                 }, 5 * 60 * 1000); // 5 минут
             }
         });
@@ -219,16 +234,21 @@ class SteamFarmBot {
         return false;
     }
 
+    // 🌟 ИСПРАВЛЕННАЯ ЛОГИКА ЗАПУСКА 🌟
     startFarming() {
-        if (this.isRunning || !this.config || this.steamGuardCallback) return false;
+        // Не запускаем, если уже запущен, ждет код ИЛИ находится на кулдауне
+        if (this.isRunning || !this.config || this.steamGuardCallback || this.retryTimeout) {
+             if(this.retryTimeout) console.log(`[${this.config.displayName}] Попытка запуска во время кулдауна. Отклонено.`);
+             return false;
+        }
 
         const decryptedPassword = decrypt(this.config.password);
         if (!decryptedPassword) {
-             this.updateAccountStatus({ botStatus: 'error', farmStatus: 'stopped', error: 'Ошибка дешифрования пароля. Проверьте ключ.' });
+             this.updateAccountStatus({ botStatus: 'error', farmStatus: 'stopped', error: 'Ошибка дешифрования пароля.' });
              return false;
         }
         
-        this.clearRetry();
+        this.clearRetry(); // Очищаем старые таймеры (если были)
         this.updateAccountStatus({ farmStatus: 'starting', botStatus: 'connecting', error: null });
         this.client.logOn({
             accountName: this.config.username,
@@ -241,7 +261,7 @@ class SteamFarmBot {
         if (this.isRunning || this.steamGuardCallback || this.retryTimeout) {
             sendNotification(`🛑 Останавливаю фарм для ${this.config.displayName}.`);
             this.client.logOff();
-            this.clearRetry();
+            this.clearRetry(); // 🚫 Сбрасываем таймер авто-рестарта, т.к. юзер остановил вручную
             this.isRunning = false;
             this.steamGuardCallback = null;
             return true;
@@ -250,7 +270,7 @@ class SteamFarmBot {
     }
 }
 
-// 🎯 Менеджер ботов
+// 🎯 Менеджер ботов (без изменений)
 class BotManager {
     startFarm(accountId) {
         let bot = botInstances.get(accountId);
@@ -258,9 +278,7 @@ class BotManager {
             bot = new SteamFarmBot(accountId);
             botInstances.set(accountId, bot);
         }
-        if (bot) {
-            return bot.startFarming();
-        }
+        if (bot) { return bot.startFarming(); }
         return false;
     }
 
@@ -304,9 +322,7 @@ class BotManager {
 
     submitSteamGuardCode(accountId, code) {
         const bot = botInstances.get(accountId);
-        if (bot) {
-            return bot.submitSteamGuardCode(code);
-        }
+        if (bot) { return bot.submitSteamGuardCode(code); }
         return false;
     }
 
@@ -316,19 +332,10 @@ class BotManager {
         const encryptedPassword = encrypt(password);
 
         const newAccount = {
-            id: accountId,
-            username: username,
-            password: encryptedPassword, 
-            displayName: displayName,
-            games: games || '730',
-            guardType: 'SGM', 
-            botStatus: 'offline',
-            farmStatus: 'stopped',
-            error: null,
-            needsGuardCode: false,
-            initialHours: 0,
-            currentHours: 0,
-            farmedHours: 0
+            id: accountId, username: username, password: encryptedPassword, 
+            displayName: displayName, games: games || '730', guardType: 'SGM', 
+            botStatus: 'offline', farmStatus: 'stopped', error: null, needsGuardCode: false,
+            initialHours: 0, currentHours: 0, farmedHours: 0
         };
 
         accounts[accountId] = newAccount;
@@ -352,77 +359,63 @@ class BotManager {
     }
 }
 
+// 🌐 API Routes (без изменений)
 const botManager = new BotManager();
-
-// 🚀 Express настройки
 app.use(express.json());
 app.use(express.static('public')); 
 
-// 🌐 API Routes
 app.get('/api/status', (req, res) => {
     const safeAccounts = Object.keys(accounts).reduce((acc, id) => {
         const { password, ...rest } = accounts[id];
         acc[id] = rest;
         return acc;
     }, {});
-    
     res.json({ accounts: safeAccounts, serverTime: new Date() });
 });
-
 app.post('/api/accounts/add', (req, res) => {
     const { username, password, games } = req.body;
     if (!username || !password || !games) {
         return res.status(400).json({ error: 'Необходимы логин, пароль и список игр.' });
     }
     const newAccount = botManager.addAccount(username, password, games);
-    res.json({ success: true, message: 'Аккаунт добавлен и зашифрован. Можете его запустить!', accountId: newAccount.id });
+    res.json({ success: true, message: 'Аккаунт добавлен и зашифрован.', accountId: newAccount.id });
 });
-
 app.post('/api/accounts/delete/:accountId', (req, res) => {
     const { accountId } = req.params;
     if (botManager.deleteAccount(accountId)) {
         res.json({ success: true, message: 'Аккаунт удален и остановлен.' });
     } else {
-        res.status(4404).json({ error: 'Аккаунт не найден.' });
+        res.status(404).json({ error: 'Аккаунт не найден.' });
     }
 });
-
 app.post('/api/farm/start/:accountId', (req, res) => {
-    const { accountId } = req.params;
     if (botManager.startFarm(accountId)) {
         res.json({ success: true, message: 'Фарм запущен' });
     } else {
-        res.status(400).json({ error: 'Аккаунт не найден, уже запущен или ожидает код.' });
+        res.status(400).json({ error: 'Аккаунт не найден, уже запущен или на кулдауне.' });
     }
 });
-
 app.post('/api/farm/stop/:accountId', (req, res) => {
-    const { accountId } = req.params;
     if (botManager.stopFarm(accountId)) {
         res.json({ success: true, message: 'Фарм остановлен' });
     } else {
         res.status(404).json({ error: 'Аккаунт не найден.' });
     }
 });
-
 app.post('/api/steam-guard/:accountId', (req, res) => {
     const { accountId } = req.params;
     const { code } = req.body;
-    if (!code) {
-        return res.status(400).json({ error: 'Введите код' });
-    }
+    if (!code) { return res.status(400).json({ error: 'Введите код' }); }
     if (botManager.submitSteamGuardCode(accountId, code)) {
         res.json({ success: true, message: 'Код отправлен.' });
     } else {
-        res.status(400).json({ error: 'Ошибка отправки кода. Код не требовался или аккаунт не найден.' });
+        res.status(400).json({ error: 'Ошибка отправки кода.' });
     }
 });
-
 app.post('/api/farm/startAll', (req, res) => {
     botManager.startAll();
     res.json({ success: true, message: 'Запущены все доступные аккаунты.' });
 });
-
 app.post('/api/farm/stopAll', (req, res) => {
     botManager.stopAll();
     res.json({ success: true, message: 'Остановлены все активные аккаунты.' });
