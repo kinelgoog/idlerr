@@ -1,0 +1,169 @@
+/* Глобальные настройки */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: #0f172a; 
+    color: white; 
+    padding: 20px; 
+}
+
+/* Анимации */
+@keyframes pulsate {
+    0% { opacity: 1; }
+    50% { opacity: 0.4; }
+    100% { opacity: 1; }
+}
+
+/* Хедер и Панель управления */
+.header { text-align: center; margin-bottom: 30px; }
+.header h1 { font-size: 2.5rem; color: #a78bfa; margin-bottom: 5px; }
+.subtitle { color: #94a3b8; font-size: 1rem; margin-bottom: 15px; }
+.actions-bar { margin: 20px 0; display: flex; justify-content: center; gap: 10px; }
+.search-bar { margin: 20px auto 0; max-width: 600px; }
+.search-bar input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #374151;
+    background: #1e293b;
+    color: white;
+    font-size: 1rem;
+}
+
+/* Группы аккаунтов */
+.group-container { margin-bottom: 40px; }
+.group-container h2 {
+    color: #e2e8f0;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 10px;
+}
+.accounts-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+    gap: 20px; 
+}
+
+/* Карточка аккаунта - Главное изменение! */
+.account-card { 
+    background: #1e293b; 
+    border-radius: 10px; 
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease-in-out;
+    border-left: 5px solid #6b7280; /* По умолчанию - Оффлайн */
+    overflow: hidden; /* Для обложки */
+}
+.account-card:hover { transform: translateY(-5px); }
+
+/* Цветовые статусы для border */
+.card-status-online { border-left-color: #10b981; }
+.card-status-steam_guard { border-left-color: #f59e0b; }
+.card-status-error { border-left-color: #ef4444; }
+.card-status-connecting { border-left-color: #3b82f6; }
+
+/* Обложка игры */
+.card-game-cover {
+    height: 150px;
+    background-size: cover;
+    background-position: center;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="150" viewBox="0 0 320 150" fill="%23334155"><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="16" fill="%2364748b">Steam Game Cover</text></svg>'); /* Заглушка */
+    position: relative;
+}
+
+.card-content { padding: 20px; }
+
+.account-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 15px; 
+}
+.account-name { font-size: 1.5rem; font-weight: 600; color: #e2e8f0; }
+
+/* Бейдж статуса с иконкой */
+.account-status { 
+    padding: 5px 12px; 
+    border-radius: 9999px;
+    font-size: 0.8rem; 
+    font-weight: bold;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.status-online { background: #10b981; }
+.status-steam_guard { background: #f59e0b; }
+.status-error { background: #ef4444; }
+.status-offline { background: #6b7280; }
+.status-connecting, .status-starting { 
+    background: #3b82f6;
+    animation: pulsate 1.5s infinite;
+}
+
+/* Детали аккаунта */
+.account-details { margin-bottom: 15px; font-size: 0.9rem; }
+.detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.detail-label { color: #94a3b8; }
+.detail-value { color: #e2e8f0; font-weight: 500; }
+
+/* 📊 Аналитика и Прогресс-бар */
+.analytics { margin-top: 15px; }
+.analytics-item { margin-bottom: 8px; }
+.progress-bar {
+    width: 100%;
+    height: 10px;
+    background: #0f172a;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+.progress-bar-inner {
+    height: 100%;
+    background-color: #a78bfa;
+    border-radius: 5px;
+    transition: width 0.5s ease;
+}
+
+/* Кнопки */
+.btn { 
+    padding: 10px 15px; 
+    border: none; 
+    border-radius: 5px; 
+    cursor: pointer; 
+    margin: 5px 5px 5px 0; 
+    color: white; 
+    font-weight: bold;
+    transition: background 0.3s;
+}
+.btn-success { background: #10b981; }
+.btn-danger { background: #ef4444; }
+.btn-warning { background: #f59e0b; }
+.btn-primary { background: #8b5cf6; }
+.btn-close { background: #334155; }
+.btn:hover { filter: brightness(1.2); }
+
+/* Модальные окна */
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 1000; }
+.modal-content { background: #1e293b; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; color: #94a3b8; font-size: 0.9em; }
+.form-group input { width: 100%; padding: 12px; border-radius: 5px; border: 1px solid #374151; background: #0f172a; color: white; font-size: 1rem; }
+
+/* Уведомления */
+.notification { 
+    position: fixed; 
+    top: 20px; 
+    right: 20px; 
+    padding: 15px 20px; 
+    background: #1e293b; 
+    border-radius: 5px; 
+    transform: translateX(400px); 
+    transition: transform 0.3s ease-in-out; 
+    min-width: 250px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    border-left: 5px solid #8b5cf6;
+}
+.notification.show { transform: translateX(0); }
+.notification.error { border-left-color: #ef4444; }
+.notification.success { border-left-color: #10b981; }
