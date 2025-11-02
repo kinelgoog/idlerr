@@ -1,0 +1,220 @@
+/* --- Глобальный импорт и переменные --- */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --font-main: 'Inter', sans-serif;
+    --font-display: 'Orbitron', sans-serif;
+    --color-bg-darkest: #0a0114;  /* Почти черный (глубокий космос) */
+    --color-bg-dark: #120421;    /* Темный фон контента */
+    --color-bg-card: #1d0738;   /* Фон карточки */
+    --color-border: #3b0e68;     /* Темно-фиолетовый */
+    --color-text: #e0d7ff;       /* Светло-фиолетовый/белый */
+    --color-text-muted: #9f7dcf; /* Приглушенный фиолетовый */
+    
+    --color-primary: #a78bfa;         /* Фиолетовый (Неон) */
+    --color-primary-glow: #e9d5ff;
+    --color-success: #34d399; /* Зеленый (Неон) */
+    --color-danger: #f87171;  /* Красный (Неон) */
+    --color-warning: #facc15; /* Желтый (Неон) */
+    --color-info: #60a5fa;    /* Синий (Неон) */
+    --color-offline: #4b5563; /* Серый */
+}
+
+/* --- Звездный фон --- */
+body {
+    font-family: var(--font-main);
+    background: var(--color-bg-darkest);
+    color: var(--color-text);
+    overflow-x: hidden;
+    position: relative;
+    /* Звездный эффект - добавляем фон в виде точек/звезд */
+    background-image: radial-gradient(#120421 15%, transparent 16%),
+                      radial-gradient(#120421 15%, transparent 16%);
+    background-size: 15px 15px;
+    background-position: 0 0, 8px 8px;
+}
+
+/* --- Глобальные стили --- */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+button { font-family: var(--font-main); cursor: pointer; border: none; }
+input { font-family: var(--font-main); }
+.dashboard-container { display: flex; min-height: 100vh; }
+
+/* --- 1. Боковая панель (Sidebar) --- */
+.sidebar {
+    flex-basis: 250px;
+    flex-shrink: 0;
+    background: var(--color-bg-darkest);
+    border-right: 1px solid var(--color-border);
+    padding: 20px;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+    z-index: 10;
+}
+.sidebar-header {
+    font-family: var(--font-display);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-primary-glow);
+    text-shadow: 0 0 5px var(--color-primary);
+    margin-bottom: 30px;
+}
+.sidebar-menu { list-style: none; }
+.sidebar-menu .menu-header {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 10px;
+    margin-top: 20px;
+}
+.sidebar-menu li button.btn {
+    width: 100%;
+    text-align: left;
+    margin-bottom: 10px;
+    padding: 12px 15px;
+}
+
+/* --- 2. Основной контент --- */
+.main-content {
+    flex-grow: 1;
+    padding: 30px;
+    background: var(--color-bg-dark); /* Немного светлее для контраста */
+}
+.main-header {
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 20px;
+    margin-bottom: 30px;
+}
+.main-header h1 {
+    font-family: var(--font-display);
+    color: var(--color-text);
+    font-weight: 600;
+}
+.search-bar input {
+    background: var(--color-bg-darkest);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text);
+}
+.search-bar input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 5px var(--color-primary);
+}
+
+/* --- Карточка аккаунта (Space Style) --- */
+.account-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    overflow: hidden;
+    border-top: 4px solid var(--color-offline); 
+}
+.account-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0 15px rgba(167, 139, 250, 0.4);
+}
+
+/* Цветовые статусы для border-top */
+.card-status-online { border-top-color: var(--color-success); }
+.card-status-steam_guard { border-top-color: var(--color-warning); }
+.card-status-error { border-top-color: var(--color-danger); }
+.card-status-connecting, .card-status-starting { border-top-color: var(--color-info); }
+
+.card-game-cover {
+    height: 150px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--color-bg-darkest);
+    /* Виньетка для "космичности" */
+    box-shadow: inset 0 0 50px 10px rgba(0, 0, 0, 0.8);
+}
+.account-name { font-family: var(--font-display); color: var(--color-primary-glow); }
+.account-status {
+    text-shadow: 0 0 3px currentColor;
+    border: 1px solid currentColor;
+}
+.status-online { color: var(--color-success); }
+.status-steam_guard { color: var(--color-warning); }
+.status-error { color: var(--color-danger); }
+.status-offline { color: var(--color-offline); }
+.status-connecting, .status-starting { color: var(--color-info); }
+
+/* 📊 Аналитика и Прогресс-бар */
+.progress-bar-inner {
+    /* Неоновый градиент */
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-glow));
+    box-shadow: 0 0 8px var(--color-primary);
+}
+
+/* --- Кнопки (Неон) --- */
+.btn {
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid transparent;
+}
+.btn-primary, .btn-success, .btn-danger, .btn-warning { color: var(--color-bg-darkest) !important; }
+
+.btn-primary { 
+    background: var(--color-primary); 
+    box-shadow: 0 0 5px var(--color-primary);
+}
+.btn-primary:hover { 
+    background: var(--color-primary-glow); 
+    box-shadow: 0 0 10px var(--color-primary-glow);
+}
+.btn-success { background: var(--color-success); box-shadow: 0 0 5px var(--color-success); }
+.btn-success:hover { filter: brightness(1.2); }
+.btn-danger { background: var(--color-danger); box-shadow: 0 0 5px var(--color-danger); }
+.btn-danger:hover { filter: brightness(1.2); }
+.btn-warning { background: var(--color-warning); box-shadow: 0 0 5px var(--color-warning); }
+
+.btn-secondary {
+    background: var(--color-bg-darkest);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+.btn-secondary:hover { 
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+}
+
+.btn:disabled {
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* --- Модальные окна --- */
+.modal-content {
+    background: var(--color-bg-dark);
+    border-top: 4px solid var(--color-primary);
+    box-shadow: 0 10px 30px rgba(167, 139, 250, 0.2);
+}
+.form-group input {
+    background: var(--color-bg-darkest);
+    border: 1px solid var(--color-border);
+}
+.form-group input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.3);
+}
+
+/* --- Уведомления --- */
+.notification {
+    background: var(--color-bg-dark);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-primary);
+    color: var(--color-text);
+}
+.notification.error { border-left-color: var(--color-danger); }
+.notification.success { border-left-color: var(--color-success); }
