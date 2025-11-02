@@ -5,14 +5,12 @@ class Dashboard {
     }
     
     init() {
-        // Загружаем данные каждые 3 секунды
         this.loadData();
-        setInterval(() => this.loadData(), 3000); 
+        setInterval(() => this.loadData(), 3000); // Обновление каждые 3 сек
         
         this.setupFormListener();
         
-        // Листенер для поиска
-        document.getElementById('searchBox').addEventListener('keyup', (e) => {
+        document.getElementById('searchBox').addEventListener('input', (e) => {
             this.filterAndRender(e.target.value.toLowerCase());
         });
     }
@@ -57,11 +55,12 @@ class Dashboard {
             const searchTerm = document.getElementById('searchBox').value.toLowerCase();
             this.filterAndRender(searchTerm); // Перерисовываем
         } catch (error) {
-            this.showNotification('Ошибка загрузки статуса', 'error');
+            // this.showNotification('Ошибка загрузки статуса', 'error');
+            console.error("Ошибка загрузки статуса:", error.message);
         }
     }
 
-    // НОВАЯ ЛОГИКА: Фильтрация и рендеринг
+    // Фильтрация и рендеринг
     filterAndRender(searchTerm = '') {
         const accountsArray = Object.values(this.allAccounts);
         
@@ -70,53 +69,76 @@ class Dashboard {
             acc.username.toLowerCase().includes(searchTerm)
         );
         
-        this.renderAccounts(filtered);
+        this.renderGroups(filtered);
     }
     
-    // НОВАЯ ЛОГИКА: Разделение на группы
-    renderAccounts(accounts) {
+    // Разделение на группы
+    renderGroups(accounts) {
         const groups = {
             attention: document.getElementById('group-attention'),
             online: document.getElementById('group-online'),
             offline: document.getElementById('group-offline'),
         };
+        const wrappers = {
+            attention: document.getElementById('group-attention-wrapper'),
+            online: document.getElementById('group-online-wrapper'),
+            offline: document.getElementById('group-offline-wrapper'),
+        }
         
-        // Очистка
-        Object.values(groups).forEach(group => group.innerHTML = '');
+        Object.values(groups).forEach(group => group.innerHTML = ''); // Очистка
+        let counts = { attention: 0, online: 0, offline: 0 };
 
         accounts.forEach(account => {
             const cardHTML = this.createAccountCardHTML(account);
             
-            // Распределение по группам
             if (account.botStatus === 'steam_guard' || account.botStatus === 'error') {
                 groups.attention.innerHTML += cardHTML;
+                counts.attention++;
             } else if (account.botStatus === 'online' || account.botStatus === 'connecting' || account.botStatus === 'starting') {
                 groups.online.innerHTML += cardHTML;
+                counts.online++;
             } else {
                 groups.offline.innerHTML += cardHTML;
+                counts.offline++;
             }
         });
+        
+        // Скрываем пустые группы
+        wrappers.attention.style.display = counts.attention > 0 ? 'block' : 'none';
+        wrappers.online.style.display = counts.online > 0 ? 'block' : 'none';
+        wrappers.offline.style.display = counts.offline > 0 ? 'block' : 'none';
     }
     
-    // НОВАЯ ЛОГИКА: Генерация карточки
+    // 🌟 ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ КАРТОЧКИ (с блокировкой кнопки) 🌟
     createAccountCardHTML(account) {
         const firstAppId = account.games.split(' ')[0];
         const coverUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${firstAppId}/header.jpg`;
         
-        // Логика прогресс-бара: показывает прогресс до следующих 100 часов
         const farmedHours = account.farmedHours || 0;
         const progressPercent = (farmedHours % 100); 
 
+        // 🌟 ЛОГИКА БЛОКИРОВКИ КНОПКИ 🌟
+        let actionButtonHTML = '';
+        if (account.botStatus === 'online' || account.botStatus === 'connecting' || account.botStatus === 'starting' || account.botStatus === 'steam_guard') {
+            actionButtonHTML = `<button class="btn btn-danger" onclick="stopFarm('${account.id}')"><i class="fas fa-stop"></i> Стоп</button>`;
+        } else if (account.botStatus === 'error') {
+            // 🚫 Кнопка "Старт" ОТКЛЮЧЕНА, пока бот в ошибке (на кулдауне)
+            actionButtonHTML = `<button class="btn btn-success" disabled title="${account.error}"><i class="fas fa-hourglass-half"></i> Кулдаун...</button>`;
+        } else {
+            // Бот оффлайн и готов к запуску
+            actionButtonHTML = `<button class="btn btn-success" onclick="startFarm('${account.id}')"><i class="fas fa-play"></i> Старт</button>`;
+        }
+
         return `
-            <div class="account-card card-status-${account.botStatus}" data-id="${account.id}">
+            <div class="account-card card-status-${account.botStatus}" data-id="${account.id}" data-name="${account.displayName} ${account.username}">
                 <div class="card-game-cover" style="background-image: url('${coverUrl}')"></div>
                 
                 <div class="card-content">
                     <div class="account-header">
-                        <div class="account-name">${account.displayName}</div>
-                        <div class="account-status status-${account.botStatus}">
+                        <span class="account-name">${account.displayName}</span>
+                        <span class="account-status status-${account.botStatus}">
                             ${this.formatStatus(account.botStatus)}
-                        </div>
+                        </span>
                     </div>
                     
                     <div class="account-details">
@@ -131,15 +153,15 @@ class Dashboard {
                         ${account.error ? `
                         <div class="detail-row">
                             <span class="detail-label">Ошибка:</span>
-                            <span class="detail-value" style="color: #ef4444; font-size: 0.8em;">${account.error}</span>
+                            <span class="detail-value" style="color: var(--color-danger); font-size: 0.8em;">${account.error}</span>
                         </div>
                         ` : ''}
                     </div>
                     
                     ${account.needsGuardCode ? `
-                    <div class="steam-guard-section">
+                    <div style="margin: 15px 0;">
                         <button class="btn btn-warning" onclick="showSteamGuardModal('${account.id}', '${account.displayName}')" style="width: 100%;">
-                            🔐 Ввести Steam Guard код
+                            <i class="fas fa-shield-halved"></i> Ввести Steam Guard код
                         </button>
                     </div>
                     ` : ''}
@@ -147,43 +169,37 @@ class Dashboard {
                     <div class="analytics">
                         <div class="analytics-item detail-row">
                             <span class="detail-label">Нафармлено:</span>
-                            <span class="detail-value" style="color: #a78bfa;">${farmedHours} ч.</span>
+                            <span class="detail-value" style="color: var(--color-primary);">${farmedHours} ч.</span>
                         </div>
                         <div class="progress-bar">
                             <div class="progress-bar-inner" style="width: ${progressPercent}%;"></div>
                         </div>
-                        <div class="analytics-item detail-row" style="font-size: 0.8em; margin-top: 5px;">
-                            <span class="detail-label">Всего часов: ${account.currentHours || 0}</span>
-                            <span class="detail-label">До цели: ${100 - progressPercent} ч.</span>
+                        <div class="analytics-item detail-row" style="font-size: 0.85rem; margin-top: 5px;">
+                            <span class="detail-label">Всего: ${account.currentHours || 0} ч.</span>
+                            <span class="detail-label">${100 - progressPercent} ч. до цели</span>
                         </div>
                     </div>
                     
-                    <div class="account-actions" style="margin-top: 20px;">
-                        ${account.farmStatus === 'running' || account.botStatus === 'connecting' || account.botStatus === 'starting' || account.botStatus === 'steam_guard' ? `
-                            <button class="btn btn-danger" onclick="stopFarm('${account.id}')">⏹️ Стоп</button>
-                        ` : `
-                            <button class="btn btn-success" onclick="startFarm('${account.id}')">▶️ Старт</button>
-                        `}
-                        <button class="btn btn-close" onclick="deleteAccount('${account.id}')">🗑️ Удалить</button>
+                    <div class="account-actions">
+                        ${actionButtonHTML}
+                        <button class="btn btn-secondary" onclick="deleteAccount('${account.id}')"><i class="fas fa-trash"></i> Удалить</button>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    // НОВАЯ ЛОГИКА: Статусы с иконками
+    // Статусы с иконками
     formatStatus(status) {
         switch (status) {
-            case 'online': return '<span>✅</span> Онлайн';
-            case 'steam_guard': return '<span>⚠️</span> Ждет Код';
-            case 'error': return '<span>❌</span> Ошибка';
-            case 'connecting': return '<span>🔄</span> Соединение';
-            case 'starting': return '<span>🔄</span> Запуск';
-            default: return '<span>🛑</span> Оффлайн';
+            case 'online': return '<i class="fas fa-check-circle"></i> Онлайн';
+            case 'steam_guard': return '<i class="fas fa-shield-halved"></i> Ждет Код';
+            case 'error': return '<i class="fas fa-exclamation-triangle"></i> Ошибка';
+            case 'connecting': return '<i class="fas fa-sync-alt fa-spin"></i> Соединение';
+            case 'starting': return '<i class="fas fa-sync-alt fa-spin"></i> Запуск';
+            default: return '<i class="fas fa-bed"></i> Оффлайн';
         }
     }
-    
-    formatGuardType(type) { /* Эта функция больше не используется, но может пригодиться */ }
 
     showNotification(message, type = 'info') {
         const notification = document.getElementById('notification');
@@ -199,9 +215,7 @@ const dashboard = new Dashboard();
 function showModal(id) { document.getElementById(id).style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-// Функции API (startAll, stopAll, deleteAccount, startFarm, stopFarm, showSteamGuardModal, submitSteamGuardCode)
-// (Остаются такими же, как в предыдущем ответе. Я скопирую их для полноты.)
-
+// API-функции (без изменений)
 async function startAll() {
     try {
         const response = await fetch('/api/farm/startAll', {method: 'POST'});
@@ -211,7 +225,6 @@ async function startAll() {
         dashboard.showNotification('Ошибка при запуске всех аккаунтов', 'error');
     }
 }
-
 async function stopAll() {
     try {
         const response = await fetch('/api/farm/stopAll', {method: 'POST'});
@@ -221,11 +234,8 @@ async function stopAll() {
         dashboard.showNotification('Ошибка при остановке всех аккаунтов', 'error');
     }
 }
-
 async function deleteAccount(accountId) {
-    if (!confirm('Вы уверены, что хотите удалить этот аккаунт? Он будет навсегда удален с сервера.')) {
-        return;
-    }
+    if (!confirm('Вы уверены, что хотите удалить этот аккаунт? Он будет навсегда удален с сервера.')) { return; }
     try {
         const response = await fetch(`/api/accounts/delete/${accountId}`, {method: 'POST'});
         const result = await response.json();
@@ -235,40 +245,36 @@ async function deleteAccount(accountId) {
         dashboard.showNotification('Ошибка удаления', 'error');
     }
 }
-
 async function startFarm(accountId) {
     try {
         const response = await fetch(`/api/farm/start/${accountId}`, {method: 'POST'});
         const result = await response.json();
-        dashboard.showNotification(result.success ? 'Фарм запущен' : result.error, result.success ? 'success' : 'error');
+        if (!result.success) dashboard.showNotification(result.error, 'error');
     } catch (error) {
         dashboard.showNotification('Ошибка запуска', 'error');
     }
 }
-
 async function stopFarm(accountId) {
     try {
         const response = await fetch(`/api/farm/stop/${accountId}`, {method: 'POST'});
         const result = await response.json();
-        dashboard.showNotification(result.success ? 'Фарм остановлен' : result.error, result.success ? 'success' : 'error');
+        if (!result.success) dashboard.showNotification(result.error, 'error');
     } catch (error) {
         dashboard.showNotification('Ошибка остановки', 'error');
     }
 }
-
 async function showSteamGuardModal(accountId, accountName) {
     document.getElementById('steamGuardContent').innerHTML = `
         <p>Для аккаунта <strong>${accountName}</strong> введите 5-значный код из мобильного приложения Steam Guard.</p>
         <div class="form-group">
-            <input type="text" id="steamGuardCode" placeholder="Введите 5-значный код" maxlength="5">
+            <input type="text" id="steamGuardCode" placeholder="Введите 5-значный код" maxlength="5" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
         </div>
         <button class="btn btn-warning" onclick="submitSteamGuardCode('${accountId}')" style="width: 100%;">
-            Подтвердить
+            <i class="fas fa-paper-plane"></i> Подтвердить
         </button>
     `;
     showModal('steamGuardModal');
 }
-
 async function submitSteamGuardCode(accountId) {
     const code = document.getElementById('steamGuardCode').value;
     if (!code) {
