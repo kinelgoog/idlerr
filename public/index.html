@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steam Booster Ultimate</title>
+    <link rel="stylesheet" href="style.css"> 
+</head>
+<body>
+    <div id="notification" class="notification"></div>
+    
+    <div id="steamGuardModal" class="modal">
+        <div class="modal-content">
+            <h3>🔐 Steam Guard код</h3>
+            <div id="steamGuardContent"></div>
+            <button class="btn btn-close" onclick="closeModal('steamGuardModal')">Закрыть</button>
+        </div>
+    </div>
+    
+    <div id="addAccountModal" class="modal">
+        <div class="modal-content">
+            <h3>➕ Добавить аккаунт</h3>
+            <form id="addAccountForm">
+                <div class="form-group">
+                    <label for="username">Логин Steam:</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Пароль Steam:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="games">App ID игр (через пробел, например: 730 440):</label>
+                    <input type="text" id="games" value="730" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Добавить и зашифровать</button>
+            </form>
+            <button class="btn btn-close" onclick="closeModal('addAccountModal')">Закрыть</button>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1>Steam Booster Ultimate</h1>
+        <p class="subtitle">Ваши данные зашифрованы. Ваш фарм автоматизирован.</p>
+        
+        <div class="actions-bar">
+            <button class="btn btn-primary" onclick="showModal('addAccountModal')">➕ Добавить аккаунт</button>
+            <button class="btn btn-success" onclick="startAll()">▶️ Старт ВСЕ</button>
+            <button class="btn btn-danger" onclick="stopAll()">⏹️ Стоп ВСЕ</button>
+        </div>
+        
+        <div class="search-bar">
+            <input type="text" id="searchBox" placeholder="🔍 Поиск по логину или названию...">
+        </div>
+    </div>
+    
+    <div class="groups-wrapper">
+        <div class="group-container">
+            <h2>⚠️ Требуют внимания</h2>
+            <div class="accounts-grid" id="group-attention">
+                </div>
+        </div>
+        
+        <div class="group-container">
+            <h2>✅ Онлайн (Фарм)</h2>
+            <div class="accounts-grid" id="group-online">
+                </div>
+        </div>
+        
+        <div class="group-container">
+            <h2>🛑 Оффлайн</h2>
+            <div class="accounts-grid" id="group-offline">
+                </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script> 
+</body>
+</html>
